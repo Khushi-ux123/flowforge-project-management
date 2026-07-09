@@ -924,12 +924,7 @@ export default function App() {
             </button>
           </form>
 
-          {/* Seed credentials hint */}
-          <div className="border-t border-gray-100 dark:border-gray-800 pt-4 text-center">
-            <p className="text-[10px] text-gray-400">
-              Demo Sandbox Credentials: <strong className="text-gray-600 dark:text-gray-300">alex@forge.com</strong> / <strong className="text-gray-600 dark:text-gray-300">password</strong>
-            </p>
-          </div>
+
 
           <div className="text-center">
             <button
@@ -989,22 +984,6 @@ export default function App() {
                   </span>
                 </div>
               </div>
-            </div>
-
-            {/* Simulated Role switcher for portfolio/reviewer evaluation */}
-            <div className="border-t border-gray-200/50 dark:border-gray-800/40 pt-2 space-y-1">
-              <label className="text-[8px] font-mono uppercase tracking-wider font-semibold text-gray-400 block">RBAC Role Simulator</label>
-              <select
-                id="sidebar-role-simulator"
-                value={currentUser.role}
-                onChange={(e) => handleSimulateRole(e.target.value as UserRole)}
-                className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-2 py-1 text-[10px] font-bold focus:outline-hidden"
-              >
-                <option value={UserRole.OWNER}>👑 Owner (Full Access)</option>
-                <option value={UserRole.MANAGER}>📋 Project Manager (High)</option>
-                <option value={UserRole.MEMBER}>💻 Team Member (Medium)</option>
-                <option value={UserRole.CLIENT}>👁️ Client (Read-Only)</option>
-              </select>
             </div>
           </div>
 

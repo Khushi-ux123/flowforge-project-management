@@ -560,6 +560,794 @@ if (dbUrl) {
   }
 }
 
+// ============================================================================
+// PostgreSQL Manual Entity Mappers (CamelCase JS <-> SnakeCase SQL)
+// ============================================================================
+
+function mapUserToRow(u: User) {
+  return [
+    u.id, u.email, u.fullName, u.avatar, u.title, u.bio || null,
+    u.timezone, u.language, u.role || null, JSON.stringify(u.notificationPrefs)
+  ];
+}
+function mapRowToUser(r: any): User {
+  return {
+    id: r.id,
+    email: r.email,
+    fullName: r.full_name,
+    avatar: r.avatar,
+    title: r.title,
+    bio: r.bio || undefined,
+    timezone: r.timezone,
+    language: r.language,
+    role: r.role || undefined,
+    notificationPrefs: typeof r.notification_prefs === "string" ? JSON.parse(r.notification_prefs) : r.notification_prefs
+  };
+}
+
+function mapOrgToRow(o: Organization) {
+  return [o.id, o.name, o.ownerId, o.logo || null, JSON.stringify(o.settings)];
+}
+function mapRowToOrg(r: any): Organization {
+  return {
+    id: r.id,
+    name: r.name,
+    ownerId: r.owner_id,
+    logo: r.logo || undefined,
+    settings: typeof r.settings === "string" ? JSON.parse(r.settings) : r.settings
+  };
+}
+
+function mapOrgMemberToRow(m: OrgMember) {
+  return [m.id, m.orgId, m.userId, m.role];
+}
+function mapRowToOrgMember(r: any): OrgMember {
+  return {
+    id: r.id,
+    orgId: r.org_id,
+    userId: r.user_id,
+    role: r.role
+  };
+}
+
+function mapTeamToRow(t: Team) {
+  return [t.id, t.name, t.orgId, t.description];
+}
+function mapRowToTeam(r: any): Team {
+  return {
+    id: r.id,
+    name: r.name,
+    orgId: r.org_id,
+    description: r.description
+  };
+}
+
+function mapTeamMemberToRow(m: TeamMember) {
+  return [m.id, m.teamId, m.userId];
+}
+function mapRowToTeamMember(r: any): TeamMember {
+  return {
+    id: r.id,
+    teamId: r.team_id,
+    userId: r.user_id
+  };
+}
+
+function mapProjectToRow(p: Project) {
+  return [p.id, p.name, p.orgId, p.description, p.status, p.priority, p.startDate, p.endDate, p.budget, p.spent, JSON.stringify(p.teamIds)];
+}
+function mapRowToProject(r: any): Project {
+  return {
+    id: r.id,
+    name: r.name,
+    orgId: r.org_id,
+    description: r.description,
+    status: r.status,
+    priority: r.priority,
+    startDate: r.start_date,
+    endDate: r.end_date,
+    budget: Number(r.budget),
+    spent: Number(r.spent),
+    teamIds: typeof r.team_ids === "string" ? JSON.parse(r.team_ids) : r.team_ids
+  };
+}
+
+function mapTaskToRow(t: Task) {
+  return [
+    t.id, t.projectId, t.title, t.description, t.status, t.priority,
+    t.dueDate, t.assigneeId || null, t.creatorId, JSON.stringify(t.labels),
+    JSON.stringify(t.tags), t.position, JSON.stringify(t.dependencies), t.points || null
+  ];
+}
+function mapRowToTask(r: any): Task {
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    title: r.title,
+    description: r.description,
+    status: r.status,
+    priority: r.priority,
+    dueDate: r.due_date,
+    assigneeId: r.assignee_id || undefined,
+    creatorId: r.creator_id,
+    labels: typeof r.labels === "string" ? JSON.parse(r.labels) : r.labels,
+    tags: typeof r.tags === "string" ? JSON.parse(r.tags) : r.tags,
+    position: Number(r.position),
+    dependencies: typeof r.dependencies === "string" ? JSON.parse(r.dependencies) : r.dependencies,
+    points: r.points || undefined
+  };
+}
+
+function mapSubtaskToRow(s: Subtask) {
+  return [s.id, s.taskId, s.title, s.completed];
+}
+function mapRowToSubtask(r: any): Subtask {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    title: r.title,
+    completed: r.completed
+  };
+}
+
+function mapCommentToRow(c: Comment) {
+  return [c.id, c.taskId, c.userId, c.content, c.createdAt];
+}
+function mapRowToComment(r: any): Comment {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    userId: r.user_id,
+    content: r.content,
+    createdAt: r.created_at
+  };
+}
+
+function mapAttachmentToRow(a: Attachment) {
+  return [a.id, a.taskId, a.name, a.url, a.mimeType, a.size, a.uploadedBy, a.createdAt];
+}
+function mapRowToAttachment(r: any): Attachment {
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    name: r.name,
+    url: r.url,
+    mimeType: r.mime_type,
+    size: r.size,
+    uploadedBy: r.uploaded_by,
+    createdAt: r.created_at
+  };
+}
+
+function mapNotificationToRow(n: Notification) {
+  return [n.id, n.userId, n.title, n.message, n.read, n.type, n.createdAt, n.link || null];
+}
+function mapRowToNotification(r: any): Notification {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    title: r.title,
+    message: r.message,
+    read: r.read,
+    type: r.type as any,
+    createdAt: r.created_at,
+    link: r.link || undefined
+  };
+}
+
+function mapActivityLogToRow(a: ActivityLog) {
+  return [a.id, a.projectId || null, a.taskId || null, a.userId, a.action, a.details, a.createdAt];
+}
+function mapRowToActivityLog(r: any): ActivityLog {
+  return {
+    id: r.id,
+    projectId: r.project_id || undefined,
+    taskId: r.task_id || undefined,
+    userId: r.user_id,
+    action: r.action,
+    details: r.details,
+    createdAt: r.created_at
+  };
+}
+
+function mapCalendarEventToRow(e: CalendarEvent) {
+  return [e.id, e.projectId, e.title, e.description, e.startDate, e.endDate, e.type, JSON.stringify(e.attendees)];
+}
+function mapRowToCalendarEvent(r: any): CalendarEvent {
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    title: r.title,
+    description: r.description,
+    startDate: r.start_date,
+    endDate: r.end_date,
+    type: r.type as any,
+    attendees: typeof r.attendees === "string" ? JSON.parse(r.attendees) : r.attendees
+  };
+}
+
+function mapChatMessageToRow(m: ChatMessage) {
+  return [m.id, m.channelId, m.userId, m.content, m.createdAt];
+}
+function mapRowToChatMessage(r: any): ChatMessage {
+  return {
+    id: r.id,
+    channelId: r.channel_id,
+    userId: r.user_id,
+    content: r.content,
+    createdAt: r.created_at
+  };
+}
+
+function mapMeetingSummaryToRow(s: MeetingSummary) {
+  return [s.id, s.title, s.date, s.duration || null, s.summary, JSON.stringify(s.decisions), JSON.stringify(s.actionItems), s.createdAt];
+}
+function mapRowToMeetingSummary(r: any): MeetingSummary {
+  return {
+    id: r.id,
+    title: r.title,
+    date: r.date,
+    duration: r.duration || undefined,
+    summary: r.summary,
+    decisions: typeof r.decisions === "string" ? JSON.parse(r.decisions) : r.decisions,
+    actionItems: typeof r.action_items === "string" ? JSON.parse(r.action_items) : r.action_items,
+    createdAt: r.created_at
+  };
+}
+
+function mapSavedFilterToRow(f: SavedSearchFilter) {
+  return [
+    f.id, f.name, f.projectId || null, JSON.stringify(f.status || null),
+    f.assigneeId || null, JSON.stringify(f.priority || null), f.dueDateStart || null,
+    f.dueDateEnd || null, JSON.stringify(f.tags || null), f.createdAt, JSON.stringify(f.filters)
+  ];
+}
+function mapRowToSavedFilter(r: any): SavedSearchFilter {
+  return {
+    id: r.id,
+    name: r.name,
+    projectId: r.project_id || undefined,
+    status: r.status ? (typeof r.status === "string" ? JSON.parse(r.status) : r.status) : undefined,
+    assigneeId: r.assignee_id || undefined,
+    priority: r.priority ? (typeof r.priority === "string" ? JSON.parse(r.priority) : r.priority) : undefined,
+    dueDateStart: r.due_date_start || undefined,
+    dueDateEnd: r.due_date_end || undefined,
+    tags: r.tags ? (typeof r.tags === "string" ? JSON.parse(r.tags) : r.tags) : undefined,
+    createdAt: r.created_at,
+    filters: typeof r.filters === "string" ? JSON.parse(r.filters) : r.filters
+  };
+}
+
+async function createPostgresSchema(): Promise<void> {
+  if (!pool) return;
+  console.log("Creating/updating structured table schemas in Neon PostgreSQL...");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      full_name TEXT NOT NULL,
+      avatar TEXT,
+      title TEXT,
+      bio TEXT,
+      timezone TEXT,
+      language TEXT,
+      role TEXT,
+      notification_prefs JSONB
+    );
+
+    CREATE TABLE IF NOT EXISTS user_passwords (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      password_hash TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS organizations (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      owner_id TEXT NOT NULL,
+      logo TEXT,
+      settings JSONB
+    );
+
+    CREATE TABLE IF NOT EXISTS org_members (
+      id TEXT PRIMARY KEY,
+      org_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS teams (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      org_id TEXT NOT NULL,
+      description TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      team_id TEXT NOT NULL,
+      user_id TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      org_id TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      start_date TEXT,
+      end_date TEXT,
+      budget NUMERIC,
+      spent NUMERIC,
+      team_ids JSONB
+    );
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL,
+      priority TEXT NOT NULL,
+      due_date TEXT,
+      assignee_id TEXT,
+      creator_id TEXT NOT NULL,
+      labels JSONB,
+      tags JSONB,
+      position DOUBLE PRECISION,
+      dependencies JSONB,
+      points INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS subtasks (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      completed BOOLEAN NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS comments (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      uploaded_by TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      read BOOLEAN NOT NULL,
+      type TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      link TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id TEXT PRIMARY KEY,
+      project_id TEXT,
+      task_id TEXT,
+      user_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      details TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      type TEXT NOT NULL,
+      attendees JSONB
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      channel_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS meeting_summaries (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      date TEXT NOT NULL,
+      duration TEXT,
+      summary TEXT NOT NULL,
+      decisions JSONB,
+      action_items JSONB,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS saved_search_filters (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      project_id TEXT,
+      status JSONB,
+      assignee_id TEXT,
+      priority JSONB,
+      due_date_start TEXT,
+      due_date_end TEXT,
+      tags JSONB,
+      created_at TEXT NOT NULL,
+      filters JSONB
+    );
+
+    CREATE TABLE IF NOT EXISTS dashboard_layouts (
+      user_id TEXT PRIMARY KEY,
+      widgets JSONB NOT NULL
+    );
+  `);
+}
+
+async function saveStoreToPostgres(s: DBStore): Promise<void> {
+  if (!pool) return;
+  console.log("Saving full state to Neon Postgres individual tables...");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Users
+    for (const u of s.users) {
+      await client.query(
+        `INSERT INTO users (id, email, full_name, avatar, title, bio, timezone, language, role, notification_prefs)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE SET
+           email = EXCLUDED.email,
+           full_name = EXCLUDED.full_name,
+           avatar = EXCLUDED.avatar,
+           title = EXCLUDED.title,
+           bio = EXCLUDED.bio,
+           timezone = EXCLUDED.timezone,
+           language = EXCLUDED.language,
+           role = EXCLUDED.role,
+           notification_prefs = EXCLUDED.notification_prefs`,
+        mapUserToRow(u)
+      );
+    }
+
+    // 2. Passwords
+    for (const [userId, hash] of Object.entries(s.passwords)) {
+      await client.query(
+        `INSERT INTO user_passwords (user_id, password_hash)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash`,
+        [userId, hash]
+      );
+    }
+
+    // 3. Organizations
+    for (const o of s.organizations) {
+      await client.query(
+        `INSERT INTO organizations (id, name, owner_id, logo, settings)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           owner_id = EXCLUDED.owner_id,
+           logo = EXCLUDED.logo,
+           settings = EXCLUDED.settings`,
+        mapOrgToRow(o)
+      );
+    }
+
+    // 4. Org Members
+    for (const m of s.orgMembers) {
+      await client.query(
+        `INSERT INTO org_members (id, org_id, user_id, role)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           org_id = EXCLUDED.org_id,
+           user_id = EXCLUDED.user_id,
+           role = EXCLUDED.role`,
+        mapOrgMemberToRow(m)
+      );
+    }
+
+    // 5. Teams
+    for (const t of s.teams) {
+      await client.query(
+        `INSERT INTO teams (id, name, org_id, description)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           org_id = EXCLUDED.org_id,
+           description = EXCLUDED.description`,
+        mapTeamToRow(t)
+      );
+    }
+
+    // 6. Team Members
+    for (const m of s.teamMembers) {
+      await client.query(
+        `INSERT INTO team_members (id, team_id, user_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE SET
+           team_id = EXCLUDED.team_id,
+           user_id = EXCLUDED.user_id`,
+        mapTeamMemberToRow(m)
+      );
+    }
+
+    // 7. Projects
+    for (const p of s.projects) {
+      await client.query(
+        `INSERT INTO projects (id, name, org_id, description, status, priority, start_date, end_date, budget, spent, team_ids)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           org_id = EXCLUDED.org_id,
+           description = EXCLUDED.description,
+           status = EXCLUDED.status,
+           priority = EXCLUDED.priority,
+           start_date = EXCLUDED.start_date,
+           end_date = EXCLUDED.end_date,
+           budget = EXCLUDED.budget,
+           spent = EXCLUDED.spent,
+           team_ids = EXCLUDED.team_ids`,
+        mapProjectToRow(p)
+      );
+    }
+
+    // 8. Tasks
+    for (const t of s.tasks) {
+      await client.query(
+        `INSERT INTO tasks (id, project_id, title, description, status, priority, due_date, assignee_id, creator_id, labels, tags, position, dependencies, points)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (id) DO UPDATE SET
+           project_id = EXCLUDED.project_id,
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           status = EXCLUDED.status,
+           priority = EXCLUDED.priority,
+           due_date = EXCLUDED.due_date,
+           assignee_id = EXCLUDED.assignee_id,
+           creator_id = EXCLUDED.creator_id,
+           labels = EXCLUDED.labels,
+           tags = EXCLUDED.tags,
+           position = EXCLUDED.position,
+           dependencies = EXCLUDED.dependencies,
+           points = EXCLUDED.points`,
+        mapTaskToRow(t)
+      );
+    }
+
+    // 9. Subtasks
+    for (const st of s.subtasks) {
+      await client.query(
+        `INSERT INTO subtasks (id, task_id, title, completed)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           task_id = EXCLUDED.task_id,
+           title = EXCLUDED.title,
+           completed = EXCLUDED.completed`,
+        mapSubtaskToRow(st)
+      );
+    }
+
+    // 10. Comments
+    for (const c of s.comments) {
+      await client.query(
+        `INSERT INTO comments (id, task_id, user_id, content, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           task_id = EXCLUDED.task_id,
+           user_id = EXCLUDED.user_id,
+           content = EXCLUDED.content,
+           created_at = EXCLUDED.created_at`,
+        mapCommentToRow(c)
+      );
+    }
+
+    // 11. Attachments
+    for (const a of s.attachments) {
+      await client.query(
+        `INSERT INTO attachments (id, task_id, name, url, mime_type, size, uploaded_by, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           task_id = EXCLUDED.task_id,
+           name = EXCLUDED.name,
+           url = EXCLUDED.url,
+           mime_type = EXCLUDED.mime_type,
+           size = EXCLUDED.size,
+           uploaded_by = EXCLUDED.uploaded_by,
+           created_at = EXCLUDED.created_at`,
+        mapAttachmentToRow(a)
+      );
+    }
+
+    // 12. Notifications
+    for (const n of s.notifications) {
+      await client.query(
+        `INSERT INTO notifications (id, user_id, title, message, read, type, created_at, link)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           user_id = EXCLUDED.user_id,
+           title = EXCLUDED.title,
+           message = EXCLUDED.message,
+           read = EXCLUDED.read,
+           type = EXCLUDED.type,
+           created_at = EXCLUDED.created_at,
+           link = EXCLUDED.link`,
+        mapNotificationToRow(n)
+      );
+    }
+
+    // 13. Activity Logs
+    for (const al of s.activityLogs) {
+      await client.query(
+        `INSERT INTO activity_logs (id, project_id, task_id, user_id, action, details, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE SET
+           project_id = EXCLUDED.project_id,
+           task_id = EXCLUDED.task_id,
+           user_id = EXCLUDED.user_id,
+           action = EXCLUDED.action,
+           details = EXCLUDED.details,
+           created_at = EXCLUDED.created_at`,
+        mapActivityLogToRow(al)
+      );
+    }
+
+    // 14. Calendar Events
+    for (const ce of s.calendarEvents) {
+      await client.query(
+        `INSERT INTO calendar_events (id, project_id, title, description, start_date, end_date, type, attendees)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           project_id = EXCLUDED.project_id,
+           title = EXCLUDED.title,
+           description = EXCLUDED.description,
+           start_date = EXCLUDED.start_date,
+           end_date = EXCLUDED.end_date,
+           type = EXCLUDED.type,
+           attendees = EXCLUDED.attendees`,
+        mapCalendarEventToRow(ce)
+      );
+    }
+
+    // 15. Chat Messages
+    for (const cm of s.chatMessages) {
+      await client.query(
+        `INSERT INTO chat_messages (id, channel_id, user_id, content, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (id) DO UPDATE SET
+           channel_id = EXCLUDED.channel_id,
+           user_id = EXCLUDED.user_id,
+           content = EXCLUDED.content,
+           created_at = EXCLUDED.created_at`,
+        mapChatMessageToRow(cm)
+      );
+    }
+
+    // 16. Meeting Summaries
+    for (const ms of s.meetingSummaries) {
+      await client.query(
+        `INSERT INTO meeting_summaries (id, title, date, duration, summary, decisions, action_items, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           date = EXCLUDED.date,
+           duration = EXCLUDED.duration,
+           summary = EXCLUDED.summary,
+           decisions = EXCLUDED.decisions,
+           action_items = EXCLUDED.action_items,
+           created_at = EXCLUDED.created_at`,
+        mapMeetingSummaryToRow(ms)
+      );
+    }
+
+    // 17. Saved Search Filters
+    for (const sf of s.savedSearchFilters) {
+      await client.query(
+        `INSERT INTO saved_search_filters (id, name, project_id, status, assignee_id, priority, due_date_start, due_date_end, tags, created_at, filters)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           project_id = EXCLUDED.project_id,
+           status = EXCLUDED.status,
+           assignee_id = EXCLUDED.assignee_id,
+           priority = EXCLUDED.priority,
+           due_date_start = EXCLUDED.due_date_start,
+           due_date_end = EXCLUDED.due_date_end,
+           tags = EXCLUDED.tags,
+           created_at = EXCLUDED.created_at,
+           filters = EXCLUDED.filters`,
+        mapSavedFilterToRow(sf)
+      );
+    }
+
+    // 18. Dashboard Layouts
+    for (const [userId, widgets] of Object.entries(s.dashboardLayouts)) {
+      await client.query(
+        `INSERT INTO dashboard_layouts (user_id, widgets)
+         VALUES ($1, $2)
+         ON CONFLICT (user_id) DO UPDATE SET widgets = EXCLUDED.widgets`,
+        [userId, JSON.stringify(widgets)]
+      );
+    }
+
+    await client.query("COMMIT");
+    console.log("Successfully persisted all database tables in Neon Postgres!");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Error during saveStoreToPostgres:", err);
+  } finally {
+    client.release();
+  }
+}
+
+async function loadStoreFromPostgres(): Promise<DBStore> {
+  console.log("Loading all data from Neon Postgres individual tables...");
+  const usersRes = await pool!.query("SELECT * FROM users");
+  const passwordsRes = await pool!.query("SELECT * FROM user_passwords");
+  const orgsRes = await pool!.query("SELECT * FROM organizations");
+  const orgMembersRes = await pool!.query("SELECT * FROM org_members");
+  const teamsRes = await pool!.query("SELECT * FROM teams");
+  const teamMembersRes = await pool!.query("SELECT * FROM team_members");
+  const projectsRes = await pool!.query("SELECT * FROM projects");
+  const tasksRes = await pool!.query("SELECT * FROM tasks");
+  const subtasksRes = await pool!.query("SELECT * FROM subtasks");
+  const commentsRes = await pool!.query("SELECT * FROM comments");
+  const attachmentsRes = await pool!.query("SELECT * FROM attachments");
+  const notificationsRes = await pool!.query("SELECT * FROM notifications");
+  const activityLogsRes = await pool!.query("SELECT * FROM activity_logs");
+  const calendarEventsRes = await pool!.query("SELECT * FROM calendar_events");
+  const chatMessagesRes = await pool!.query("SELECT * FROM chat_messages");
+  const meetingSummariesRes = await pool!.query("SELECT * FROM meeting_summaries");
+  const savedSearchFiltersRes = await pool!.query("SELECT * FROM saved_search_filters");
+  const dashboardLayoutsRes = await pool!.query("SELECT * FROM dashboard_layouts");
+
+  // Reconstruct passwords record
+  const passwords: Record<string, string> = {};
+  for (const r of passwordsRes.rows) {
+    passwords[r.user_id] = r.password_hash;
+  }
+
+  // Reconstruct dashboard layouts record
+  const dashboardLayouts: Record<string, DashboardWidget[]> = {};
+  for (const r of dashboardLayoutsRes.rows) {
+    dashboardLayouts[r.user_id] = typeof r.widgets === "string" ? JSON.parse(r.widgets) : r.widgets;
+  }
+
+  return {
+    users: usersRes.rows.map(mapRowToUser),
+    passwords,
+    organizations: orgsRes.rows.map(mapRowToOrg),
+    orgMembers: orgMembersRes.rows.map(mapRowToOrgMember),
+    teams: teamsRes.rows.map(mapRowToTeam),
+    teamMembers: teamMembersRes.rows.map(mapRowToTeamMember),
+    projects: projectsRes.rows.map(mapRowToProject),
+    tasks: tasksRes.rows.map(mapRowToTask),
+    subtasks: subtasksRes.rows.map(mapRowToSubtask),
+    comments: commentsRes.rows.map(mapRowToComment),
+    attachments: attachmentsRes.rows.map(mapRowToAttachment),
+    notifications: notificationsRes.rows.map(mapRowToNotification),
+    activityLogs: activityLogsRes.rows.map(mapRowToActivityLog),
+    calendarEvents: calendarEventsRes.rows.map(mapRowToCalendarEvent),
+    chatMessages: chatMessagesRes.rows.map(mapRowToChatMessage),
+    meetingSummaries: meetingSummariesRes.rows.map(mapRowToMeetingSummary),
+    savedSearchFilters: savedSearchFiltersRes.rows.map(mapRowToSavedFilter),
+    dashboardLayouts
+  };
+}
+
 export async function initPostgresDB(): Promise<void> {
   if (!pool) {
     const fallbackDbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
@@ -584,27 +1372,41 @@ export async function initPostgresDB(): Promise<void> {
   try {
     console.log("Initializing Neon Postgres Database connection...");
     
-    // Create the schema holder table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS flowforge_store (
-        id INT PRIMARY KEY,
-        data JSONB NOT NULL
-      )
-    `);
+    // Create actual relational table schemas
+    await createPostgresSchema();
 
-    // Fetch store state from Postgres
-    const res = await pool.query("SELECT data FROM flowforge_store WHERE id = 1");
-    if (res.rows.length > 0) {
-      store = res.rows[0].data;
-      console.log("Successfully loaded database from Neon Postgres.");
+    // Check if users table is populated
+    const countRes = await pool.query("SELECT COUNT(*) FROM users");
+    const userCount = parseInt(countRes.rows[0].count, 10);
+
+    if (userCount > 0) {
+      store = await loadStoreFromPostgres();
+      console.log("Successfully loaded database from individual Neon Postgres tables!");
     } else {
-      console.log("Neon Postgres table is empty. Seeding and initializing demo store data...");
-      store = getInitialStore();
-      await pool.query(
-        "INSERT INTO flowforge_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1",
-        [JSON.stringify(store)]
-      );
-      console.log("Neon Postgres database seeded successfully.");
+      console.log("Neon Postgres tables are empty. Checking local db.json for existing project data...");
+      let loadedFromLocal = false;
+      try {
+        if (fs.existsSync(DB_FILE)) {
+          const fileData = fs.readFileSync(DB_FILE, "utf-8");
+          const parsed = JSON.parse(fileData);
+          if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+            store = parsed;
+            loadedFromLocal = true;
+            console.log("Found existing local db.json with project data. Syncing it to Neon tables...");
+          }
+        }
+      } catch (localReadErr) {
+        console.error("Could not read local db.json for Neon migration:", localReadErr);
+      }
+
+      if (!loadedFromLocal) {
+        console.log("No valid local db.json found. Seeding and initializing demo store data...");
+        store = getInitialStore();
+      }
+
+      // Sync seeded data into all individual tables
+      await saveStoreToPostgres(store);
+      console.log("Neon Postgres database tables seeded successfully.");
     }
   } catch (err) {
     console.error("Failed to connect or initialize Neon Postgres database:", err);
@@ -648,13 +1450,8 @@ export function saveDB(): void {
   }
 
   if (pool) {
-    pool.query(
-      "INSERT INTO flowforge_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1",
-      [JSON.stringify(store)]
-    ).then(() => {
-      console.log("Successfully persisted database changes to Neon Postgres.");
-    }).catch((err) => {
-      console.error("Failed to persist database changes to Neon Postgres:", err);
+    saveStoreToPostgres(store).catch((err) => {
+      console.error("Failed to persist database changes to individual Neon tables:", err);
     });
   }
 }
