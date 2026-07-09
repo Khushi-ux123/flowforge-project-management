@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import pg from "pg";
+import dotenv from "dotenv";
+
+// Load environment variables immediately
+dotenv.config();
+
 import {
   User,
   UserRole,
@@ -556,6 +561,21 @@ if (dbUrl) {
 }
 
 export async function initPostgresDB(): Promise<void> {
+  if (!pool) {
+    const fallbackDbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+    if (fallbackDbUrl) {
+      try {
+        pool = new pg.Pool({
+          connectionString: fallbackDbUrl,
+          ssl: { rejectUnauthorized: false }
+        });
+        console.log("Constructed Neon PG Connection Pool inside initPostgresDB.");
+      } catch (poolErr) {
+        console.error("Failed to construct Neon PG Connection Pool inside initPostgresDB:", poolErr);
+      }
+    }
+  }
+
   if (!pool) {
     console.log("No PostgreSQL connection string provided. FlowForge runs on local db.json storage.");
     return;
