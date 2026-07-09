@@ -1,0 +1,6 @@
+{
+  "name": "FlowForge",
+  "description": "FlowForge is an AI-powered project management dashboard and SaaS platform featuring kanban boards, timeline Gantt, calendar, collaborative teams, interactive charts, and an integrated Gemini AI Assistant for task generation, sprint planning, and risk prediction.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
