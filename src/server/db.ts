@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import pg from "pg";
 import {
   User,
   UserRole,
@@ -538,6 +539,60 @@ function getInitialStore(): DBStore {
   };
 }
 
+// PostgreSQL pool setup (Optional & Graceful fallback)
+let pool: pg.Pool | null = null;
+const dbUrl = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL;
+
+if (dbUrl) {
+  try {
+    pool = new pg.Pool({
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false } // Neon database connection requires SSL
+    });
+    console.log("Constructed Neon PG Connection Pool.");
+  } catch (poolErr) {
+    console.error("Failed to construct Neon PG Connection Pool:", poolErr);
+  }
+}
+
+export async function initPostgresDB(): Promise<void> {
+  if (!pool) {
+    console.log("No PostgreSQL connection string provided. FlowForge runs on local db.json storage.");
+    return;
+  }
+
+  try {
+    console.log("Initializing Neon Postgres Database connection...");
+    
+    // Create the schema holder table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS flowforge_store (
+        id INT PRIMARY KEY,
+        data JSONB NOT NULL
+      )
+    `);
+
+    // Fetch store state from Postgres
+    const res = await pool.query("SELECT data FROM flowforge_store WHERE id = 1");
+    if (res.rows.length > 0) {
+      store = res.rows[0].data;
+      console.log("Successfully loaded database from Neon Postgres.");
+    } else {
+      console.log("Neon Postgres table is empty. Seeding and initializing demo store data...");
+      store = getInitialStore();
+      await pool.query(
+        "INSERT INTO flowforge_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1",
+        [JSON.stringify(store)]
+      );
+      console.log("Neon Postgres database seeded successfully.");
+    }
+  } catch (err) {
+    console.error("Failed to connect or initialize Neon Postgres database:", err);
+    console.log("Falling back gracefully to local db.json storage.");
+    pool = null; // deactivate pool so we fall back to local file system
+  }
+}
+
 export function loadDB(): DBStore {
   if (store) return store;
 
@@ -565,10 +620,22 @@ export function loadDB(): DBStore {
 
 export function saveDB(): void {
   if (!store) return;
+
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(store, null, 2), "utf-8");
   } catch (err) {
     console.error("Failed to persist database to file:", err);
+  }
+
+  if (pool) {
+    pool.query(
+      "INSERT INTO flowforge_store (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1",
+      [JSON.stringify(store)]
+    ).then(() => {
+      console.log("Successfully persisted database changes to Neon Postgres.");
+    }).catch((err) => {
+      console.error("Failed to persist database changes to Neon Postgres:", err);
+    });
   }
 }
 

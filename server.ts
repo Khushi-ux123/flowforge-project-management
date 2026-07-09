@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
-import { db, hashPassword } from "./src/server/db.ts";
+import { db, hashPassword, initPostgresDB } from "./src/server/db.ts";
 import { authenticateJWT, signToken, AuthenticatedRequest } from "./src/server/auth.ts";
 import { UserRole, TaskStatus, TaskPriority, ProjectStatus, ProjectPriority, CalendarEventType } from "./src/types.ts";
 
@@ -1502,6 +1502,9 @@ app.post("/api/dashboard/layout/reset", authenticateJWT as any, (req, res) => {
 // ----------------------------------------------------
 
 async function startServer() {
+  // Initialize Neon Postgres if configured (gracefully falls back to local file if not)
+  await initPostgresDB();
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
