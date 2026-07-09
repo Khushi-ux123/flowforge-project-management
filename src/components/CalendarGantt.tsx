@@ -15,7 +15,8 @@ import {
   ExternalLink,
   X
 } from "lucide-react";
-import { Task, Project, User as WorkspaceUser, TaskStatus, TaskPriority, CalendarEvent, CalendarEventType } from "../types.ts";
+import { Task, Project, User as WorkspaceUser, TaskStatus, TaskPriority, CalendarEvent, CalendarEventType, UserRole } from "../types.ts";
+import { motion, AnimatePresence } from "motion/react";
 
 interface CalendarGanttProps {
   tasks: Task[];
@@ -27,6 +28,7 @@ interface CalendarGanttProps {
   onAddTask: (status: TaskStatus) => void;
   calendarEvents: CalendarEvent[];
   onAddCalendarEvent: (event: Partial<CalendarEvent>) => void;
+  currentUser: WorkspaceUser | null;
 }
 
 type ProjectView = "kanban" | "list" | "timeline" | "calendar" | "table";
@@ -40,7 +42,8 @@ export default function CalendarGantt({
   onUpdateTaskStatus,
   onAddTask,
   calendarEvents,
-  onAddCalendarEvent
+  onAddCalendarEvent,
+  currentUser
 }: CalendarGanttProps) {
   const [activeView, setActiveView] = useState<ProjectView>("kanban");
 
@@ -161,6 +164,10 @@ export default function CalendarGantt({
         <div
           key={day}
           onClick={() => {
+            if (currentUser?.role === UserRole.CLIENT) {
+              alert("Clients have Read-Only access to the Calendar.");
+              return;
+            }
             setSelectedCalDate(dateString);
             setMeetTitle("");
             setMeetDesc("");
@@ -336,66 +343,81 @@ export default function CalendarGantt({
 
                 {/* Cards Container */}
                 <div className="flex-1 overflow-y-auto space-y-2.5 pr-0.5 scrollbar-thin min-h-[150px]">
-                  {statusTasks.map((t) => {
-                    const dev = getUser(t.assigneeId);
+                  <AnimatePresence mode="popLayout">
+                    {statusTasks.map((t) => {
+                      const dev = getUser(t.assigneeId);
 
-                    return (
-                      <div
-                        key={t.id}
-                        id={`card-${t.id}`}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, t.id)}
-                        onClick={() => onSelectTask(t.id)}
-                        className="group border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500/80 bg-white dark:bg-gray-950 rounded-xl p-3.5 shadow-xs hover:shadow-md transition-all cursor-pointer active:scale-98"
-                      >
-                        {/* Tags */}
-                        {t.labels.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-2">
-                            {t.labels.slice(0, 2).map((lbl) => (
-                              <span key={lbl} className="text-[9px] font-mono font-semibold bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-500 px-1.5 py-0.5 rounded-sm">
-                                {lbl}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-
-                        <h5 className="text-xs font-bold text-gray-900 dark:text-gray-100 leading-snug group-hover:text-blue-600 transition-colors">
-                          {t.title}
-                        </h5>
-
-                        <div className="flex items-center justify-between mt-3.5 pt-3 border-t border-gray-50 dark:border-gray-900">
-                          <div className="flex items-center space-x-1.5">
-                            <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm ${
-                              t.priority === TaskPriority.HIGH ? "bg-rose-50 dark:bg-rose-950/20 text-rose-500" :
-                              t.priority === TaskPriority.MEDIUM ? "bg-amber-50 dark:bg-amber-950/20 text-amber-500" :
-                              "bg-gray-100 dark:bg-gray-800 text-gray-500"
-                            }`}>
-                              {t.priority}
-                            </span>
-                          </div>
-
-                          {dev ? (
-                            <div className="h-5 w-5 rounded-full bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-[9px] font-black font-mono text-blue-600 dark:text-blue-300" title={dev.fullName}>
-                              {dev.avatar}
+                      return (
+                        <motion.div
+                          key={t.id}
+                          id={`card-${t.id}`}
+                          layout
+                          initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.94 }}
+                          whileHover={{ y: -3, transition: { duration: 0.12 } }}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 380,
+                            damping: 30
+                          }}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, t.id)}
+                          onClick={() => onSelectTask(t.id)}
+                          className="group border border-gray-200 dark:border-gray-800 hover:border-blue-500 dark:hover:border-blue-500/80 bg-white dark:bg-gray-950 rounded-xl p-3.5 shadow-xs hover:shadow-md cursor-pointer"
+                        >
+                          {/* Tags */}
+                          {t.labels.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {t.labels.slice(0, 2).map((lbl) => (
+                                <span key={lbl} className="text-[9px] font-mono font-semibold bg-gray-50 dark:bg-gray-900 text-gray-400 dark:text-gray-500 px-1.5 py-0.5 rounded-sm">
+                                  {lbl}
+                                </span>
+                              ))}
                             </div>
-                          ) : (
-                            <User className="h-4 w-4 text-gray-300" />
                           )}
-                        </div>
-                      </div>
-                    );
-                  })}
+
+                          <h5 className="text-xs font-bold text-gray-900 dark:text-gray-100 leading-snug group-hover:text-blue-600 transition-colors">
+                            {t.title}
+                          </h5>
+
+                          <div className="flex items-center justify-between mt-3.5 pt-3 border-t border-gray-50 dark:border-gray-900">
+                            <div className="flex items-center space-x-1.5">
+                              <span className={`text-[8px] font-bold font-mono px-1.5 py-0.5 rounded-sm ${
+                                t.priority === TaskPriority.HIGH ? "bg-rose-50 dark:bg-rose-950/20 text-rose-500" :
+                                t.priority === TaskPriority.MEDIUM ? "bg-amber-50 dark:bg-amber-950/20 text-amber-500" :
+                                "bg-gray-100 dark:bg-gray-800 text-gray-500"
+                              }`}>
+                                {t.priority}
+                              </span>
+                            </div>
+
+                            {dev ? (
+                              <div className="h-5 w-5 rounded-full bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-[9px] font-black font-mono text-blue-600 dark:text-blue-300" title={dev.fullName}>
+                                {dev.avatar}
+                              </div>
+                            ) : (
+                              <User className="h-4 w-4 text-gray-300" />
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
                 </div>
 
                 {/* Column Footer Action */}
-                <button
-                  id={`add-task-${status}`}
-                  onClick={() => onAddTask(status)}
-                  className="w-full mt-3.5 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-700 hover:bg-white dark:hover:bg-gray-950 flex items-center justify-center text-xs font-bold text-slate-800 dark:text-slate-400 hover:text-black dark:hover:text-slate-200 transition-all cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  <span>Create ticket</span>
-                </button>
+                {(currentUser?.role === UserRole.OWNER || currentUser?.role === UserRole.MANAGER) && (
+                  <button
+                    id={`add-task-${status}`}
+                    onClick={() => onAddTask(status)}
+                    className="w-full mt-3.5 py-2.5 rounded-lg border border-dashed border-gray-300 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-700 hover:bg-white dark:hover:bg-gray-950 flex items-center justify-center text-xs font-bold text-slate-800 dark:text-slate-400 hover:text-black dark:hover:text-slate-200 transition-all cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                    <span>Create ticket</span>
+                  </button>
+                )}
               </div>
             );
           })}

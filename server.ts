@@ -247,6 +247,14 @@ app.get("/api/projects", authenticateJWT as any, (req: AuthenticatedRequest, res
 
 app.post("/api/projects", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole !== UserRole.OWNER && callerRole !== UserRole.MANAGER) {
+    res.status(403).json({ error: "Only Organization Owners or Project Managers can create projects." });
+    return;
+  }
+
   const { name, description, status, priority, budget, startDate, endDate, teamIds } = req.body;
 
   if (!name) {
@@ -284,6 +292,14 @@ app.post("/api/projects", authenticateJWT as any, (req: AuthenticatedRequest, re
 
 app.put("/api/projects/:id", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole !== UserRole.OWNER && callerRole !== UserRole.MANAGER) {
+    res.status(403).json({ error: "Only Organization Owners or Project Managers can edit projects." });
+    return;
+  }
+
   const id = req.params.id;
   const updates = req.body;
 
@@ -307,6 +323,12 @@ app.put("/api/projects/:id", authenticateJWT as any, (req: AuthenticatedRequest,
 
 app.delete("/api/projects/:id", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  if (!callerOm || callerOm.role !== UserRole.OWNER) {
+    res.status(403).json({ error: "Only Organization Owners can delete projects." });
+    return;
+  }
+
   const id = req.params.id;
 
   db.deleteProject(id);
@@ -337,6 +359,14 @@ app.get("/api/tasks", authenticateJWT as any, (req: AuthenticatedRequest, res) =
 
 app.post("/api/tasks", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole !== UserRole.OWNER && callerRole !== UserRole.MANAGER) {
+    res.status(403).json({ error: "Only Organization Owners or Project Managers can create tasks." });
+    return;
+  }
+
   const { projectId, title, description, status, priority, dueDate, assigneeId, labels, tags, dependencies, points } = req.body;
 
   if (!projectId || !title) {
@@ -401,6 +431,25 @@ app.put("/api/tasks/:id", authenticateJWT as any, (req: AuthenticatedRequest, re
     return;
   }
 
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole === UserRole.CLIENT) {
+    res.status(403).json({ error: "Clients do not have permissions to edit or update tasks." });
+    return;
+  }
+
+  if (callerRole === UserRole.MEMBER) {
+    // Check if there are edits other than 'status'
+    const editKeys = Object.keys(updates).filter((k) => k !== "status");
+    const isOnlyUpdatingStatus = editKeys.length === 0;
+
+    if (!isOnlyUpdatingStatus && oldTask.assigneeId !== user.id) {
+      res.status(403).json({ error: "Only the assigned member, a Project Manager, or the Owner can edit general fields of this task." });
+      return;
+    }
+  }
+
   const updated = db.updateTask(id, updates);
 
   // Send assignment notification if assignee changed
@@ -437,6 +486,14 @@ app.delete("/api/tasks/:id", authenticateJWT as any, (req: AuthenticatedRequest,
   const task = db.getTasks().find((t) => t.id === id);
   if (!task) {
     res.status(404).json({ error: "Task not found" });
+    return;
+  }
+
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole !== UserRole.OWNER && callerRole !== UserRole.MANAGER) {
+    res.status(403).json({ error: "Only Organization Owners or Project Managers can delete tasks." });
     return;
   }
 
@@ -549,6 +606,14 @@ app.post("/api/tasks/:taskId/comments", authenticateJWT as any, (req: Authentica
 
 app.post("/api/tasks/:taskId/attachments", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole === UserRole.CLIENT) {
+    res.status(403).json({ error: "Clients do not have permission to upload attachments." });
+    return;
+  }
+
   const taskId = req.params.taskId;
   const { name, url, mimeType, size } = req.body;
 
@@ -577,7 +642,22 @@ app.get("/api/tasks/:taskId/attachments", authenticateJWT as any, (req, res) => 
   res.json(atts);
 });
 
-app.delete("/api/attachments/:id", authenticateJWT as any, (req, res) => {
+app.delete("/api/attachments/:id", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+  const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole === UserRole.CLIENT) {
+    res.status(403).json({ error: "Clients do not have permission to delete attachments." });
+    return;
+  }
+
+  const attachment = db.getAttachments().find((a) => a.id === req.params.id);
+  if (attachment && callerRole === UserRole.MEMBER && attachment.uploadedBy !== user.id) {
+    res.status(403).json({ error: "You can only delete attachments that you uploaded." });
+    return;
+  }
+
   db.deleteAttachment(req.params.id);
   res.json({ success: true });
 });
@@ -586,13 +666,30 @@ app.delete("/api/attachments/:id", authenticateJWT as any, (req, res) => {
 // CHAT ENDPOINTS (Socket Simulated polling-friendly)
 // ----------------------------------------------------
 
-app.get("/api/chat/:channelId", authenticateJWT as any, (req, res) => {
+app.get("/api/chat/:channelId", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+  const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole === UserRole.CLIENT) {
+    res.status(403).json({ error: "Clients do not have access to Team Chat." });
+    return;
+  }
+
   const messages = db.getChatMessages().filter((m) => m.channelId === req.params.channelId);
   res.json(messages);
 });
 
 app.post("/api/chat/:channelId", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
   const user = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === user.id && om.orgId === "org-1");
+  const callerRole = callerOm ? callerOm.role : UserRole.MEMBER;
+
+  if (callerRole === UserRole.CLIENT) {
+    res.status(403).json({ error: "Clients do not have access to Team Chat." });
+    return;
+  }
+
   const channelId = req.params.channelId;
   const { content } = req.body;
 
@@ -715,7 +812,144 @@ app.post("/api/notifications", authenticateJWT as any, (req: AuthenticatedReques
 });
 
 app.get("/api/users", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
-  res.json(db.getUsers());
+  const users = db.getUsers();
+  const orgMembers = db.getOrgMembers();
+  const usersWithRoles = users.map((u) => {
+    const om = orgMembers.find((om) => om.userId === u.id && om.orgId === "org-1");
+    return {
+      ...u,
+      role: om ? om.role : UserRole.MEMBER,
+      isSuspended: (u as any).isSuspended || false
+    };
+  });
+  res.json(usersWithRoles);
+});
+
+app.post("/api/users/invite", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+  const caller = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === caller.id && om.orgId === "org-1");
+  if (!callerOm || callerOm.role !== UserRole.OWNER) {
+    res.status(403).json({ error: "Only the Organization Owner can invite users." });
+    return;
+  }
+
+  const { email, fullName, title, role } = req.body;
+  if (!email || !fullName || !role) {
+    res.status(400).json({ error: "Email, Full Name, and Role are required" });
+    return;
+  }
+
+  // Check if user already exists
+  let existingUser = db.getUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+  if (!existingUser) {
+    existingUser = {
+      id: `u-${Date.now()}`,
+      email: email.toLowerCase(),
+      fullName,
+      avatar: fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase().substring(0, 2),
+      title: title || "Team Member",
+      timezone: "America/New_York",
+      language: "en",
+      notificationPrefs: { email: true, push: true, mentionsOnly: false }
+    };
+    db.addUser(existingUser, hashPassword("password123"));
+  }
+
+  // Add as org member
+  db.updateOrgMemberRole(existingUser.id, "org-1", role as UserRole);
+
+  // Log activity
+  db.addActivityLog({
+    id: `act-${Date.now()}`,
+    userId: caller.id,
+    action: "invited user",
+    details: `${fullName} (${email}) as ${role}`,
+    createdAt: new Date().toISOString()
+  });
+
+  res.status(201).json({ user: { ...existingUser, role, isSuspended: false }, success: true });
+});
+
+app.post("/api/users/:id/role", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+  const caller = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === caller.id && om.orgId === "org-1");
+  if (!callerOm || callerOm.role !== UserRole.OWNER) {
+    res.status(403).json({ error: "Only the Organization Owner can assign roles." });
+    return;
+  }
+
+  const { role } = req.body;
+  if (!role) {
+    res.status(400).json({ error: "Role is required" });
+    return;
+  }
+
+  db.updateOrgMemberRole(req.params.id, "org-1", role as UserRole);
+
+  // Log activity
+  db.addActivityLog({
+    id: `act-${Date.now()}`,
+    userId: caller.id,
+    action: "assigned role",
+    details: `Updated role of user ${req.params.id} to ${role}`,
+    createdAt: new Date().toISOString()
+  });
+
+  res.json({ success: true, userId: req.params.id, role });
+});
+
+app.post("/api/users/:id/suspend", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+  const caller = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === caller.id && om.orgId === "org-1");
+  if (!callerOm || callerOm.role !== UserRole.OWNER) {
+    res.status(403).json({ error: "Only the Organization Owner can suspend accounts." });
+    return;
+  }
+
+  if (req.params.id === caller.id) {
+    res.status(400).json({ error: "You cannot suspend your own Owner account." });
+    return;
+  }
+
+  const isSuspended = db.toggleUserSuspended(req.params.id);
+
+  // Log activity
+  db.addActivityLog({
+    id: `act-${Date.now()}`,
+    userId: caller.id,
+    action: isSuspended ? "suspended user" : "reactivated user",
+    details: `${isSuspended ? "Suspended" : "Reactivated"} user ID ${req.params.id}`,
+    createdAt: new Date().toISOString()
+  });
+
+  res.json({ success: true, isSuspended });
+});
+
+app.post("/api/users/:id/remove", authenticateJWT as any, (req: AuthenticatedRequest, res) => {
+  const caller = req.user!;
+  const callerOm = db.getOrgMembers().find((om) => om.userId === caller.id && om.orgId === "org-1");
+  if (!callerOm || callerOm.role !== UserRole.OWNER) {
+    res.status(403).json({ error: "Only the Organization Owner can remove users." });
+    return;
+  }
+
+  if (req.params.id === caller.id) {
+    res.status(400).json({ error: "You cannot remove your own Owner account." });
+    return;
+  }
+
+  db.deleteOrgMember(req.params.id, "org-1");
+
+  // Log activity
+  db.addActivityLog({
+    id: `act-${Date.now()}`,
+    userId: caller.id,
+    action: "removed user",
+    details: `Removed user ID ${req.params.id} from organization`,
+    createdAt: new Date().toISOString()
+  });
+
+  res.json({ success: true });
 });
 
 app.get("/api/events", authenticateJWT as any, (req, res) => {

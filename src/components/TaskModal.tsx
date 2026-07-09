@@ -40,13 +40,14 @@ export default function TaskModal({
   onDeleteTask,
   currentUser
 }: TaskModalProps) {
+  const [task, setTask] = useState<Task | null>(null);
   const userRole = currentUser?.role || UserRole.MEMBER;
   const isClient = userRole === UserRole.CLIENT;
   const isMember = userRole === UserRole.MEMBER;
+  const isAssigned = task?.assigneeId === currentUser?.id;
+  const canEditGeneralFields = userRole === UserRole.OWNER || userRole === UserRole.MANAGER || (userRole === UserRole.MEMBER && isAssigned);
   const canDelete = userRole === UserRole.OWNER || userRole === UserRole.MANAGER;
   const canChangeAdminFields = userRole === UserRole.OWNER || userRole === UserRole.MANAGER;
-
-  const [task, setTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -104,6 +105,15 @@ export default function TaskModal({
     e.preventDefault();
     if (!newSubtaskTitle.trim()) return;
 
+    if (isClient) {
+      alert("Clients do not have permissions to add subtasks.");
+      return;
+    }
+    if (isMember && !isAssigned) {
+      alert("Only assigned members can add subtasks.");
+      return;
+    }
+
     try {
       const res = await fetch("/api/subtasks", {
         method: "POST",
@@ -126,6 +136,15 @@ export default function TaskModal({
   };
 
   const handleToggleSubtask = async (sub: Subtask) => {
+    if (isClient) {
+      alert("Clients do not have permissions to modify subtasks.");
+      return;
+    }
+    if (isMember && !isAssigned) {
+      alert("Only assigned members can modify subtasks.");
+      return;
+    }
+
     try {
       const res = await fetch(`/api/subtasks/${sub.id}`, {
         method: "PUT",
@@ -145,6 +164,15 @@ export default function TaskModal({
   };
 
   const handleDeleteSubtask = async (subId: string) => {
+    if (isClient) {
+      alert("Clients do not have permissions to delete subtasks.");
+      return;
+    }
+    if (isMember && !isAssigned) {
+      alert("Only assigned members, Project Managers, or Owners can delete subtasks.");
+      return;
+    }
+
     try {
       const res = await fetch(`/api/subtasks/${subId}`, {
         method: "DELETE",
@@ -188,6 +216,11 @@ export default function TaskModal({
   const handleAddAttachment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!attachmentName.trim() || !attachmentUrl.trim()) return;
+
+    if (isClient) {
+      alert("Clients do not have permission to upload attachments.");
+      return;
+    }
 
     try {
       const res = await fetch(`/api/tasks/${task.id}/attachments`, {
@@ -276,6 +309,16 @@ export default function TaskModal({
   };
 
   const handleDeleteAttachment = async (attId: string) => {
+    if (isClient) {
+      alert("Clients do not have permission to delete attachments.");
+      return;
+    }
+    const att = attachments.find((a) => a.id === attId);
+    if (att && isMember && att.uploadedBy !== currentUser?.id) {
+      alert("You can only delete attachments that you uploaded.");
+      return;
+    }
+
     try {
       const res = await fetch(`/api/attachments/${attId}`, {
         method: "DELETE",
@@ -365,7 +408,7 @@ export default function TaskModal({
               id="task-title-input"
               type="text"
               value={task.title}
-              disabled={isClient}
+              disabled={!canEditGeneralFields}
               onChange={(e) => handleFieldChange("title", e.target.value)}
               className="w-full text-xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-b border-transparent hover:border-gray-200 dark:hover:border-gray-800 focus:border-blue-500 focus:outline-hidden py-1 transition-all disabled:opacity-75 disabled:cursor-not-allowed"
             />
@@ -416,12 +459,15 @@ export default function TaskModal({
 
             {/* Assignee Selector */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono tracking-wider font-bold text-slate-600 dark:text-slate-400 uppercase">Assignee</label>
+              <label className="text-[10px] font-mono tracking-wider font-bold text-slate-600 dark:text-slate-400 uppercase flex items-center space-x-1">
+                <span>Assignee</span>
+                {!canChangeAdminFields && <Lock className="h-2 w-2 text-amber-500" />}
+              </label>
               <div className="relative">
                 <select
                   id="task-assignee-select"
                   value={task.assigneeId || ""}
-                  disabled={isClient}
+                  disabled={!canChangeAdminFields}
                   onChange={(e) => handleFieldChange("assigneeId", e.target.value || undefined)}
                   className="w-full appearance-none rounded-lg bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-xs text-gray-800 dark:text-gray-200 font-medium focus:outline-hidden disabled:opacity-65 disabled:bg-gray-100/50 dark:disabled:bg-gray-900/50 disabled:cursor-not-allowed"
                 >
@@ -436,12 +482,15 @@ export default function TaskModal({
 
             {/* Due Date Input */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-mono tracking-wider font-bold text-slate-600 dark:text-slate-400 uppercase">Due Date</label>
+              <label className="text-[10px] font-mono tracking-wider font-bold text-slate-600 dark:text-slate-400 uppercase flex items-center space-x-1">
+                <span>Due Date</span>
+                {!canChangeAdminFields && <Lock className="h-2 w-2 text-amber-500" />}
+              </label>
               <input
                 id="task-date-input"
                 type="date"
                 value={task.dueDate || ""}
-                disabled={isClient}
+                disabled={!canChangeAdminFields}
                 onChange={(e) => handleFieldChange("dueDate", e.target.value)}
                 className="w-full rounded-lg bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 px-3 py-1.5 text-xs text-gray-800 dark:text-gray-200 font-medium focus:outline-hidden disabled:opacity-65 disabled:bg-gray-100/50 dark:disabled:bg-gray-900/50 disabled:cursor-not-allowed"
               />
@@ -484,7 +533,7 @@ export default function TaskModal({
               id="task-desc-area"
               value={task.description}
               rows={4}
-              disabled={isClient}
+              disabled={!canEditGeneralFields}
               onChange={(e) => handleFieldChange("description", e.target.value)}
               placeholder="Provide a detailed outline of tasks, objectives, and deliverables..."
               className="w-full text-xs text-gray-950 dark:text-gray-100 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 focus:border-blue-500 focus:outline-hidden rounded-lg p-3 transition-all leading-relaxed"
@@ -505,42 +554,51 @@ export default function TaskModal({
               {subtasks.map((st) => (
                 <div key={st.id} className="flex items-center justify-between group bg-gray-50/50 dark:bg-gray-900/20 border border-gray-100 dark:border-gray-900/50 rounded-lg p-2.5">
                   <div className="flex items-center space-x-3 flex-1 min-w-0">
-                    <button id={`toggle-sub-${st.id}`} onClick={() => handleToggleSubtask(st)} className="text-gray-400 hover:text-blue-500 transition-colors">
+                    <button
+                      id={`toggle-sub-${st.id}`}
+                      onClick={() => handleToggleSubtask(st)}
+                      disabled={isClient}
+                      className="text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <CheckCircle2 className={`h-4.5 w-4.5 ${st.completed ? "text-emerald-500 fill-emerald-100 dark:fill-emerald-950/20" : ""}`} />
                     </button>
                     <span className={`text-xs truncate ${st.completed ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"}`}>
                       {st.title}
                     </span>
                   </div>
-                  <button
-                    id={`del-sub-${st.id}`}
-                    onClick={() => handleDeleteSubtask(st.id)}
-                    className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {!isClient && (
+                    <button
+                      id={`del-sub-${st.id}`}
+                      onClick={() => handleDeleteSubtask(st.id)}
+                      className="p-1 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 rounded-sm hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
 
             {/* Add Subtask Form */}
-            <form id="add-subtask-form" onSubmit={handleAddSubtask} className="flex space-x-2">
-              <input
-                id="subtask-title-input"
-                type="text"
-                placeholder="Add a new checklist subtask..."
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                className="flex-1 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-950 dark:text-gray-100 focus:outline-hidden focus:border-blue-500"
-              />
-              <button
-                id="add-subtask-btn"
-                type="submit"
-                className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-950 rounded-lg px-3.5 py-1.5 text-xs font-semibold hover:bg-gray-800 dark:hover:bg-white transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </form>
+            {!isClient && (
+              <form id="add-subtask-form" onSubmit={handleAddSubtask} className="flex space-x-2">
+                <input
+                  id="subtask-title-input"
+                  type="text"
+                  placeholder="Add a new checklist subtask..."
+                  value={newSubtaskTitle}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                  className="flex-1 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-950 dark:text-gray-100 focus:outline-hidden focus:border-blue-500"
+                />
+                <button
+                  id="add-subtask-btn"
+                  type="submit"
+                  className="bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-950 rounded-lg px-3.5 py-1.5 text-xs font-semibold hover:bg-gray-800 dark:hover:bg-white transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              </form>
+            )}
           </div>
 
           {/* Interactive File Drag & Drop + Attachments list */}
@@ -551,62 +609,66 @@ export default function TaskModal({
             </h4>
 
             {/* Drag & Drop Area */}
-            <div
-              id="attachment-dropzone"
-              onDragEnter={handleDrag}
-              onDragOver={handleDrag}
-              onDragLeave={handleDrag}
-              onDrop={handleDrop}
-              className={`border-2 border-dashed rounded-xl p-6 text-center transition-all relative ${
-                isDragActive
-                  ? "border-blue-500 bg-blue-50/30 dark:bg-blue-950/20"
-                  : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-gray-50/20 dark:bg-gray-900/5"
-              }`}
-            >
-              <Upload className="h-8 w-8 mx-auto text-slate-500 dark:text-gray-400 mb-2 animate-bounce" />
-              <p className="text-xs text-gray-700 dark:text-gray-300">
-                Drag & drop files here, or{" "}
-                <label className="text-blue-600 font-semibold cursor-pointer hover:underline">
-                  browse local files
-                  <input
-                    id="file-browse-input"
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
-                </label>
-              </p>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                Supports images, documents, and code assets.
-              </p>
-            </div>
+            {!isClient && (
+              <div
+                id="attachment-dropzone"
+                onDragEnter={handleDrag}
+                onDragOver={handleDrag}
+                onDragLeave={handleDrag}
+                onDrop={handleDrop}
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-all relative ${
+                  isDragActive
+                    ? "border-blue-500 bg-blue-50/30 dark:bg-blue-950/20"
+                    : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-gray-50/20 dark:bg-gray-900/5"
+                }`}
+              >
+                <Upload className="h-8 w-8 mx-auto text-slate-500 dark:text-gray-400 mb-2 animate-bounce" />
+                <p className="text-xs text-gray-700 dark:text-gray-300">
+                  Drag & drop files here, or{" "}
+                  <label className="text-blue-600 font-semibold cursor-pointer hover:underline">
+                    browse local files
+                    <input
+                      id="file-browse-input"
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+                  </label>
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                  Supports images, documents, and code assets.
+                </p>
+              </div>
+            )}
 
             {/* Web URL Attachment Fallback */}
-            <form id="url-attachment-form" onSubmit={handleAddAttachment} className="grid grid-cols-1 md:grid-cols-3 gap-2">
-              <input
-                id="att-name-input"
-                type="text"
-                placeholder="Attachment label (e.g. Design Spec)"
-                value={attachmentName}
-                onChange={(e) => setAttachmentName(e.target.value)}
-                className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-950 dark:text-gray-100 focus:outline-hidden"
-              />
-              <input
-                id="att-url-input"
-                type="text"
-                placeholder="Paste web link or file URL..."
-                value={attachmentUrl}
-                onChange={(e) => setAttachmentUrl(e.target.value)}
-                className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-950 dark:text-gray-100 focus:outline-hidden md:col-span-2"
-              />
-              <button
-                id="att-add-btn"
-                type="submit"
-                className="md:col-span-3 bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-800 py-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-800/80 transition-colors"
-              >
-                Link Attachment
-              </button>
-            </form>
+            {!isClient && (
+              <form id="url-attachment-form" onSubmit={handleAddAttachment} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <input
+                  id="att-name-input"
+                  type="text"
+                  placeholder="Attachment label (e.g. Design Spec)"
+                  value={attachmentName}
+                  onChange={(e) => setAttachmentName(e.target.value)}
+                  className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-950 dark:text-gray-100 focus:outline-hidden"
+                />
+                <input
+                  id="att-url-input"
+                  type="text"
+                  placeholder="Paste web link or file URL..."
+                  value={attachmentUrl}
+                  onChange={(e) => setAttachmentUrl(e.target.value)}
+                  className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-gray-950 dark:text-gray-100 focus:outline-hidden md:col-span-2"
+                />
+                <button
+                  id="att-add-btn"
+                  type="submit"
+                  className="md:col-span-3 bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-800 py-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-800/80 transition-colors"
+                >
+                  Link Attachment
+                </button>
+              </form>
+            )}
 
             {/* List active attachments */}
             <div id="attachment-list" className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
@@ -636,13 +698,15 @@ export default function TaskModal({
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </a>
-                    <button
-                      id={`att-del-${att.id}`}
-                      onClick={() => handleDeleteAttachment(att.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {!isClient && (
+                      <button
+                        id={`att-del-${att.id}`}
+                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

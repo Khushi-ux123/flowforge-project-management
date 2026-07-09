@@ -27,7 +27,10 @@ import {
   EyeOff,
   ArrowUp,
   ArrowDown,
-  FileDown
+  FileDown,
+  UserPlus,
+  GitBranch,
+  Trash2
 } from "lucide-react";
 import {
   User as WorkspaceUser,
@@ -67,6 +70,7 @@ export default function App() {
 
   // Workspace Core States
   const [users, setUsers] = useState<WorkspaceUser[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
@@ -75,6 +79,13 @@ export default function App() {
 
   // Navigation & Preferences
   const [activeTab, setActiveTab] = useState<"projects" | "ai" | "chat" | "analytics" | "settings">("projects");
+  const [settingsSubTab, setSettingsSubTab] = useState<"preferences" | "users" | "billing" | "audit">("preferences");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteTitle, setInviteTitle] = useState("");
+  const [inviteRole, setInviteRole] = useState<UserRole>(UserRole.MEMBER);
+  const [newTeamName, setNewTeamName] = useState("");
+  const [newTeamDescription, setNewTeamDescription] = useState("");
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("darkMode");
@@ -170,7 +181,7 @@ export default function App() {
       const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
 
       // Parallelize fetches for fast, seamless rendering
-      const [uRes, pRes, tRes, eRes, nRes, tmRes, dRes, fRes] = await Promise.all([
+      const [uRes, pRes, tRes, eRes, nRes, tmRes, dRes, fRes, actRes] = await Promise.all([
         fetch("/api/users", { headers }),
         fetch("/api/projects", { headers }),
         fetch("/api/tasks", { headers }),
@@ -178,7 +189,8 @@ export default function App() {
         fetch("/api/notifications", { headers }),
         fetch("/api/teams", { headers }),
         fetch("/api/dashboard/layout", { headers }),
-        fetch("/api/saved-filters", { headers })
+        fetch("/api/saved-filters", { headers }),
+        fetch("/api/activity", { headers })
       ]);
 
       if (uRes.ok) setUsers(await uRes.json());
@@ -186,6 +198,7 @@ export default function App() {
       if (eRes.ok) setCalendarEvents(await eRes.json());
       if (nRes.ok) setNotifications(await nRes.json());
       if (tmRes.ok) setTeams(await tmRes.json());
+      if (actRes.ok) setActivities(await actRes.json());
 
       if (dRes.ok) {
         const layouts = await dRes.json();
@@ -455,7 +468,142 @@ export default function App() {
         const updatedUser = { ...currentUser, role: newRole };
         setCurrentUser(updatedUser);
         localStorage.setItem("currentUser", JSON.stringify(updatedUser));
+        if (newRole === UserRole.CLIENT && activeTab === "chat") {
+          setActiveTab("projects");
+        }
         fetchWorkspaceData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ----------------------------------------------------
+  // USER & TEAM MANAGEMENT HANDLERS (OWNER-ONLY)
+  // ----------------------------------------------------
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteEmail.trim() || !inviteName.trim() || !inviteRole) {
+      alert("Please fill out all required fields.");
+      return;
+    }
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      };
+      const res = await fetch("/api/users/invite", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          fullName: inviteName.trim(),
+          title: inviteTitle.trim(),
+          role: inviteRole
+        })
+      });
+      if (res.ok) {
+        alert(`Invited ${inviteName} successfully!`);
+        setInviteEmail("");
+        setInviteName("");
+        setInviteTitle("");
+        setInviteRole(UserRole.MEMBER);
+        fetchWorkspaceData();
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to invite user."}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateUserRole = async (userId: string, role: UserRole) => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      };
+      const res = await fetch(`/api/users/${userId}/role`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ role })
+      });
+      if (res.ok) {
+        fetchWorkspaceData();
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to update role."}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleUserSuspended = async (userId: string) => {
+    try {
+      const headers = {
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      };
+      const res = await fetch(`/api/users/${userId}/suspend`, {
+        method: "POST",
+        headers
+      });
+      if (res.ok) {
+        fetchWorkspaceData();
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to change user status."}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to remove this member from the organization?")) return;
+    try {
+      const headers = {
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      };
+      const res = await fetch(`/api/users/${userId}/remove`, {
+        method: "POST",
+        headers
+      });
+      if (res.ok) {
+        fetchWorkspaceData();
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to remove member."}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleCreateTeamSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTeamName.trim()) return;
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      };
+      const res = await fetch("/api/teams", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: newTeamName.trim(),
+          description: newTeamDescription.trim()
+        })
+      });
+      if (res.ok) {
+        setNewTeamName("");
+        setNewTeamDescription("");
+        fetchWorkspaceData();
+      } else {
+        const errData = await res.json();
+        alert(`Error: ${errData.error || "Failed to create team."}`);
       }
     } catch (err) {
       console.error(err);
@@ -828,7 +976,7 @@ export default function App() {
           </div>
 
           {/* Active User Segment */}
-          <div className="bg-gray-50 dark:bg-gray-900/60 border border-gray-100 dark:border-gray-900/40 rounded-xl p-3">
+          <div className="bg-gray-50 dark:bg-gray-900/60 border border-gray-100 dark:border-gray-900/40 rounded-xl p-3 space-y-2.5">
             <div className="flex items-center space-x-2.5">
               <div className="h-8 w-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold font-mono">
                 {currentUser.avatar}
@@ -841,6 +989,22 @@ export default function App() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Simulated Role switcher for portfolio/reviewer evaluation */}
+            <div className="border-t border-gray-200/50 dark:border-gray-800/40 pt-2 space-y-1">
+              <label className="text-[8px] font-mono uppercase tracking-wider font-semibold text-gray-400 block">RBAC Role Simulator</label>
+              <select
+                id="sidebar-role-simulator"
+                value={currentUser.role}
+                onChange={(e) => handleSimulateRole(e.target.value as UserRole)}
+                className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-2 py-1 text-[10px] font-bold focus:outline-hidden"
+              >
+                <option value={UserRole.OWNER}>👑 Owner (Full Access)</option>
+                <option value={UserRole.MANAGER}>📋 Project Manager (High)</option>
+                <option value={UserRole.MEMBER}>💻 Team Member (Medium)</option>
+                <option value={UserRole.CLIENT}>👁️ Client (Read-Only)</option>
+              </select>
             </div>
           </div>
 
@@ -872,18 +1036,20 @@ export default function App() {
               <span>AI Scrum CoPilot</span>
             </button>
 
-            <button
-              id="nav-chat"
-              onClick={() => { setActiveTab("chat"); setMobileMenuOpen(false); }}
-              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                activeTab === "chat"
-                  ? "bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <MessageSquare className="h-4 w-4" />
-              <span>Team discussion</span>
-            </button>
+            {currentUser?.role !== UserRole.CLIENT && (
+              <button
+                id="nav-chat"
+                onClick={() => { setActiveTab("chat"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                  activeTab === "chat"
+                    ? "bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-900"
+                }`}
+              >
+                <MessageSquare className="h-4 w-4" />
+                <span>Team discussion</span>
+              </button>
+            )}
 
             <button
               id="nav-analytics"
@@ -1196,7 +1362,7 @@ export default function App() {
             </div>
 
             {/* Create ticket trigger shortcut */}
-            {currentUser.role !== UserRole.CLIENT && (
+            {(currentUser?.role === UserRole.OWNER || currentUser?.role === UserRole.MANAGER) && (
               <button
                 id="topbar-create-task"
                 onClick={() => setIsCreateTaskOpen(true)}
@@ -1591,6 +1757,7 @@ export default function App() {
                 }}
                 calendarEvents={calendarEvents}
                 onAddCalendarEvent={handleAddCalendarEvent}
+                currentUser={currentUser}
               />
             </div>
           )}
@@ -1606,7 +1773,7 @@ export default function App() {
             </div>
           )}
 
-          {activeTab === "chat" && (
+          {activeTab === "chat" && currentUser?.role !== UserRole.CLIENT && (
             <div id="tab-chat-root">
               <ChatHub
                 teams={teams}
@@ -1630,51 +1797,418 @@ export default function App() {
 
           {activeTab === "settings" && (
             <div id="tab-settings-root" className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl p-6 space-y-6">
-              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider font-mono">Workspace Settings</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Language preferences</label>
-                  <select className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-hidden">
-                    <option>English (US) - Default</option>
-                    <option>Español (ES)</option>
-                    <option>Français (FR)</option>
-                    <option>日本語 (JP)</option>
-                  </select>
+              <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 dark:border-gray-900 pb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider font-mono flex items-center space-x-2">
+                    <Settings className="h-4 w-4 text-rose-500" />
+                    <span>Workspace Control & Preferences</span>
+                  </h3>
+                  <p className="text-[10px] text-gray-500 mt-1">Configure individual settings and manage organization resources.</p>
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Time Zone Configuration</label>
-                  <select className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-hidden">
-                    <option>UTC (Coordinated Universal Time)</option>
-                    <option>EST (Eastern Standard Time)</option>
-                    <option>PST (Pacific Standard Time)</option>
-                  </select>
+              {/* Sub-tabs horizontal switcher for OWNER */}
+              {currentUser?.role === UserRole.OWNER && (
+                <div className="flex flex-wrap gap-2 border-b border-gray-100 dark:border-gray-900 pb-2">
+                  <button
+                    id="sub-tab-preferences"
+                    onClick={() => setSettingsSubTab("preferences")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      settingsSubTab === "preferences"
+                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+                        : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
+                    }`}
+                  >
+                    Personal Preferences
+                  </button>
+                  <button
+                    id="sub-tab-users"
+                    onClick={() => setSettingsSubTab("users")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center space-x-1.5 ${
+                      settingsSubTab === "users"
+                        ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                        : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
+                    }`}
+                  >
+                    <span>Members & Teams</span>
+                    <span className="bg-blue-500 text-white text-[9px] px-1.5 py-0.2 rounded-full font-mono">{users.length}</span>
+                  </button>
+                  <button
+                    id="sub-tab-billing"
+                    onClick={() => setSettingsSubTab("billing")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      settingsSubTab === "billing"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                        : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
+                    }`}
+                  >
+                    Billing & Subscription
+                  </button>
+                  <button
+                    id="sub-tab-audit"
+                    onClick={() => setSettingsSubTab("audit")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                      settingsSubTab === "audit"
+                        ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                        : "text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
+                    }`}
+                  >
+                    Organization Audit Log
+                  </button>
                 </div>
+              )}
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Change password security</label>
-                  <input type="password" placeholder="Enter new password block..." className="w-full bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 text-xs focus:outline-hidden" />
-                </div>
+              {/* SECTION 1: Personal Preferences (Visible to Everyone) */}
+              {(currentUser?.role !== UserRole.OWNER || settingsSubTab === "preferences") && (
+                <div id="sub-panel-preferences" className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Language preferences</label>
+                      <select className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-hidden">
+                        <option>English (US) - Default</option>
+                        <option>Español (ES)</option>
+                        <option>Français (FR)</option>
+                        <option>日本語 (JP)</option>
+                      </select>
+                    </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Multi-Factor authentication</label>
-                  <div className="text-xs text-gray-400 pt-2 flex items-center space-x-2">
-                    <input type="checkbox" className="rounded-sm" />
-                    <span>Enable Two-Factor SMS / Authenticator confirmation codes</span>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Time Zone Configuration</label>
+                      <select className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-2 text-xs focus:outline-hidden">
+                        <option>UTC (Coordinated Universal Time)</option>
+                        <option>EST (Eastern Standard Time)</option>
+                        <option>PST (Pacific Standard Time)</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Change password security</label>
+                      <input type="password" placeholder="Enter new password block..." className="w-full bg-white dark:bg-gray-950 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-800 rounded-lg px-3 py-2 text-xs focus:outline-hidden" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-mono uppercase tracking-wider font-semibold text-gray-400">Multi-Factor authentication</label>
+                      <div className="text-xs text-gray-400 pt-2 flex items-center space-x-2">
+                        <input type="checkbox" className="rounded-sm" />
+                        <span>Enable Two-Factor SMS / Authenticator confirmation codes</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 dark:border-gray-900 pt-4 text-right">
+                    <button
+                      id="settings-save-btn"
+                      onClick={() => alert("Personal workspace preferences saved successfully!")}
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Save Preference Nodes
+                    </button>
                   </div>
                 </div>
-              </div>
+              )}
 
-              <div className="border-t border-gray-100 dark:border-gray-900 pt-4 text-right">
-                <button
-                  id="settings-save-btn"
-                  onClick={() => alert("Workspace preferences saved successfully!")}
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
-                >
-                  Save Preference Nodes
-                </button>
-              </div>
+              {/* SECTION 2: Members & Teams (Owner Only) */}
+              {currentUser?.role === UserRole.OWNER && settingsSubTab === "users" && (
+                <div id="sub-panel-users" className="space-y-8 animate-fadeIn">
+                  {/* Part A: Invite User Form */}
+                  <div className="border border-gray-100 dark:border-gray-900 rounded-xl p-5 bg-gray-50/30 dark:bg-gray-900/10 space-y-4">
+                    <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center space-x-1.5 uppercase font-mono tracking-wide">
+                      <UserPlus className="h-4 w-4 text-blue-500" />
+                      <span>Invite Org Member</span>
+                    </h4>
+                    <form onSubmit={handleInviteUser} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-gray-500 font-semibold">Full Name</label>
+                        <input
+                          id="invite-name-input"
+                          type="text"
+                          placeholder="e.g. John Doe"
+                          value={inviteName}
+                          onChange={(e) => setInviteName(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.8 text-xs focus:outline-hidden"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-gray-500 font-semibold">Email Address</label>
+                        <input
+                          id="invite-email-input"
+                          type="email"
+                          placeholder="e.g. john@example.com"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.8 text-xs focus:outline-hidden"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-gray-500 font-semibold">Job Title</label>
+                        <input
+                          id="invite-title-input"
+                          type="text"
+                          placeholder="e.g. Designer, Engineer"
+                          value={inviteTitle}
+                          onChange={(e) => setInviteTitle(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.8 text-xs focus:outline-hidden"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] text-gray-500 font-semibold">Assigned Role</label>
+                        <select
+                          id="invite-role-select"
+                          value={inviteRole}
+                          onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                          className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.8 text-xs focus:outline-hidden"
+                        >
+                          <option value={UserRole.OWNER}>Organization Owner 👑</option>
+                          <option value={UserRole.MANAGER}>Project Manager 📋</option>
+                          <option value={UserRole.MEMBER}>Team Member 💻</option>
+                          <option value={UserRole.CLIENT}>Client Reader 👁️</option>
+                        </select>
+                      </div>
+                      <div className="md:col-span-4 text-right">
+                        <button
+                          id="invite-submit-btn"
+                          type="submit"
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          Send Invitation
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  {/* Part B: Directory Table */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center space-x-1.5 uppercase font-mono tracking-wide">
+                      <Users className="h-4 w-4 text-emerald-500" />
+                      <span>Workspace Directory & Access Roles</span>
+                    </h4>
+                    <div className="overflow-x-auto border border-gray-100 dark:border-gray-900 rounded-xl bg-white dark:bg-gray-950">
+                      <table className="w-full border-collapse text-left text-xs text-gray-500">
+                        <thead className="bg-gray-50 dark:bg-gray-900/50 text-[10px] font-mono uppercase tracking-wider text-gray-400">
+                          <tr>
+                            <th className="px-4 py-3 font-semibold">User</th>
+                            <th className="px-4 py-3 font-semibold">Role</th>
+                            <th className="px-4 py-3 font-semibold">Status</th>
+                            <th className="px-4 py-3 font-semibold text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-900">
+                          {users.map((u) => (
+                            <tr key={u.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-900/10">
+                              <td className="px-4 py-3 flex items-center space-x-3">
+                                <div className="h-8 w-8 rounded-full bg-blue-500/10 text-blue-600 font-bold flex items-center justify-center text-xs">
+                                  {u.avatar || u.fullName.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-gray-900 dark:text-gray-100 flex items-center space-x-1.5">
+                                    <span>{u.fullName}</span>
+                                    {u.id === currentUser.id && (
+                                      <span className="bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[8px] font-bold px-1.5 py-0.2 rounded-full uppercase">You</span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400">{u.email} — {u.title}</div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <select
+                                  id={`role-select-${u.id}`}
+                                  value={u.role || UserRole.MEMBER}
+                                  disabled={u.id === currentUser.id}
+                                  onChange={(e) => handleUpdateUserRole(u.id, e.target.value as UserRole)}
+                                  className="bg-transparent text-gray-800 dark:text-gray-200 border-none font-semibold text-xs focus:ring-0 focus:outline-hidden disabled:opacity-60"
+                                >
+                                  <option value={UserRole.OWNER}>Owner 👑</option>
+                                  <option value={UserRole.MANAGER}>Project Manager 📋</option>
+                                  <option value={UserRole.MEMBER}>Team Member 💻</option>
+                                  <option value={UserRole.CLIENT}>Client 👁️</option>
+                                </select>
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  id={`toggle-suspend-${u.id}`}
+                                  onClick={() => handleToggleUserSuspended(u.id)}
+                                  disabled={u.id === currentUser.id}
+                                  className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                    u.isSuspended
+                                      ? "bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-500/15"
+                                      : "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/15"
+                                  } disabled:opacity-60`}
+                                >
+                                  {u.isSuspended ? "Suspended" : "Active"}
+                                </button>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  id={`remove-user-${u.id}`}
+                                  onClick={() => handleRemoveUser(u.id)}
+                                  disabled={u.id === currentUser.id}
+                                  className="p-1 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 disabled:opacity-30 cursor-pointer"
+                                  title="Remove Member from Org"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Part C: Create & Manage Teams */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    {/* Create Team Form */}
+                    <div className="border border-gray-100 dark:border-gray-900 rounded-xl p-5 bg-gray-50/30 dark:bg-gray-900/10 space-y-4">
+                      <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center space-x-1.5 uppercase font-mono tracking-wide">
+                        <GitBranch className="h-4 w-4 text-indigo-500" />
+                        <span>Form New Work Team</span>
+                      </h4>
+                      <form onSubmit={handleCreateTeamSubmit} className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-gray-500 font-semibold">Team Name</label>
+                          <input
+                            id="team-name-input"
+                            type="text"
+                            placeholder="e.g. Design Systems, QA Division"
+                            value={newTeamName}
+                            onChange={(e) => setNewTeamName(e.target.value)}
+                            className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.8 text-xs focus:outline-hidden"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] text-gray-500 font-semibold">Description</label>
+                          <textarea
+                            id="team-desc-input"
+                            placeholder="Detailing team purpose, focus area, or scope..."
+                            value={newTeamDescription}
+                            onChange={(e) => setNewTeamDescription(e.target.value)}
+                            rows={3}
+                            className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-200 rounded-lg px-3 py-1.8 text-xs focus:outline-hidden"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <button
+                            id="team-submit-btn"
+                            type="submit"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer"
+                          >
+                            Create Team
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+
+                    {/* Existing Teams list */}
+                    <div className="space-y-4">
+                      <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center space-x-1.5 uppercase font-mono tracking-wide">
+                        <span>Active Workforce Teams</span>
+                      </h4>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                        {teams.map((t) => (
+                          <div key={t.id} className="border border-gray-100 dark:border-gray-900 rounded-xl p-4 bg-white dark:bg-gray-950 flex items-start justify-between">
+                            <div className="space-y-1 min-w-0">
+                              <div className="font-bold text-xs text-gray-900 dark:text-gray-100 truncate">{t.name}</div>
+                              <div className="text-[10px] text-gray-400 line-clamp-2 leading-relaxed">{t.description || "No description provided."}</div>
+                            </div>
+                            <span className="text-[9px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-500/15 rounded-md px-2 py-0.5">
+                              ID: {t.id}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 3: Billing & Subscription (Owner Only) */}
+              {currentUser?.role === UserRole.OWNER && settingsSubTab === "billing" && (
+                <div id="sub-panel-billing" className="space-y-6 animate-fadeIn">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="border border-emerald-500/15 bg-emerald-500/5 rounded-xl p-5 space-y-2">
+                      <div className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">Active Plan</div>
+                      <div className="text-xl font-black text-gray-900 dark:text-gray-50">Enterprise Pro</div>
+                      <p className="text-[10px] text-gray-400 mt-1">Premium SLA, infinite AI hours, and advanced RBAC matrix modules enabled.</p>
+                    </div>
+
+                    <div className="border border-blue-500/15 bg-blue-500/5 rounded-xl p-5 space-y-2">
+                      <div className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wide">User Seats Occupied</div>
+                      <div className="text-xl font-black text-gray-900 dark:text-gray-50">{users.length} / 50 seats</div>
+                      <p className="text-[10px] text-gray-400 mt-1">Seat volume scales dynamically. Upgrades/Downgrades take effect instantly.</p>
+                    </div>
+
+                    <div className="border border-purple-500/15 bg-purple-500/5 rounded-xl p-5 space-y-2">
+                      <div className="text-[10px] font-mono font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wide">Monthly Cost Tracking</div>
+                      <div className="text-xl font-black text-gray-900 dark:text-gray-50">$499.00 / mo</div>
+                      <p className="text-[10px] text-gray-400 mt-1">Next invoice scheduled for 2026-08-01. Tax details included.</p>
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-100 dark:border-gray-900 rounded-xl p-5 space-y-3 bg-white dark:bg-gray-950">
+                    <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center space-x-1.5 uppercase font-mono tracking-wide">
+                      <span>Transaction & Invoice History</span>
+                    </h4>
+                    <div className="divide-y divide-gray-100 dark:divide-gray-900">
+                      {[
+                        { id: "inv-9034", date: "2026-07-01", amount: "$499.00", status: "Paid" },
+                        { id: "inv-8912", date: "2026-06-01", amount: "$499.00", status: "Paid" },
+                        { id: "inv-8724", date: "2026-05-01", amount: "$499.00", status: "Paid" }
+                      ].map((inv) => (
+                        <div key={inv.id} className="flex justify-between items-center py-2.5 text-xs text-gray-500">
+                          <div className="flex items-center space-x-4">
+                            <span className="font-mono text-gray-400">{inv.id}</span>
+                            <span className="text-gray-700 dark:text-gray-300 font-semibold">{inv.date}</span>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <span className="font-bold text-gray-900 dark:text-gray-100">{inv.amount}</span>
+                            <span className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase">{inv.status}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4: Organization Audit Log (Owner Only) */}
+              {currentUser?.role === UserRole.OWNER && settingsSubTab === "audit" && (
+                <div id="sub-panel-audit" className="space-y-4 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200 uppercase font-mono tracking-wide">
+                      <span>Live Audit Logs Trail</span>
+                    </h4>
+                    <span className="text-[10px] bg-purple-50 dark:bg-purple-950/20 text-purple-600 dark:text-purple-400 border border-purple-500/15 px-2 py-0.5 rounded-full font-mono">
+                      ● active logging
+                    </span>
+                  </div>
+
+                  <div className="border border-gray-100 dark:border-gray-900 rounded-xl p-5 bg-white dark:bg-gray-950 max-h-[400px] overflow-y-auto space-y-4 divide-y divide-gray-50 dark:divide-gray-900/50">
+                    {activities.length > 0 ? (
+                      activities.map((act, index) => {
+                        const actor = users.find((u) => u.id === act.userId);
+                        return (
+                          <div key={act.id} className={`flex justify-between items-start text-xs text-gray-500 ${index > 0 ? "pt-3.5" : ""}`}>
+                            <div className="flex items-start space-x-3">
+                              <span className="h-2 w-2 rounded-full bg-purple-500 mt-1.5 animate-pulse"></span>
+                              <div>
+                                <span className="font-bold text-gray-900 dark:text-gray-100">{actor ? actor.fullName : "System Daemon"}</span>{" "}
+                                <span className="text-gray-600 dark:text-gray-400">{act.action}</span>
+                                <p className="text-[10px] text-gray-400 mt-0.5 italic">{act.details || ""}</p>
+                              </div>
+                            </div>
+                            <span className="font-mono text-[10px] text-slate-400">{new Date(act.createdAt).toLocaleString()}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-xs text-gray-400 py-6 text-center">No system actions registered yet.</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>

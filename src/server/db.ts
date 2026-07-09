@@ -808,6 +808,22 @@ export const db = {
     }
     saveDB();
   },
+  deleteOrgMember: (userId: string, orgId: string) => {
+    const s = loadDB();
+    s.orgMembers = s.orgMembers.filter((om) => !(om.userId === userId && om.orgId === orgId));
+    saveDB();
+  },
+  toggleUserSuspended: (userId: string) => {
+    const s = loadDB();
+    const idx = s.users.findIndex((u) => u.id === userId);
+    if (idx !== -1) {
+      const u = s.users[idx] as any;
+      u.isSuspended = !u.isSuspended;
+      saveDB();
+      return u.isSuspended;
+    }
+    return false;
+  },
   markAllNotificationsRead: (userId: string) => {
     const s = loadDB();
     s.notifications.forEach((n) => {
